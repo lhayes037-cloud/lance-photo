@@ -129,7 +129,7 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 </style>
 </head><body>
 <header>
- <div class="brand">LANCE PHOTO <span class="ver">0.6.4 RAW PREVIEW BETA</span></div>
+ <div class="brand">LANCE PHOTO <span class="ver">0.6.5 EXPOSURE FIX</span></div>
  <input id="file" type="file" accept="image/*,.arw,.ARW,.dng,.DNG,.nef,.NEF,.cr2,.CR2,.cr3,.CR3,.raf,.RAF,.rw2,.RW2" hidden>
  <button class="btn" id="openBtn">Open</button>
  <button class="btn" id="undoBtn" disabled>↶</button>
@@ -216,7 +216,7 @@ function rgb2hsl(r,g,b){r/=255;g/=255;b/=255;let mx=Math.max(r,g,b),mn=Math.min(
 function hsl2rgb(h,s,l){h=((h%360)+360)%360;let c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,r=0,g=0,b=0;if(h<60)[r,g,b]=[c,x,0];else if(h<120)[r,g,b]=[x,c,0];else if(h<180)[r,g,b]=[0,c,x];else if(h<240)[r,g,b]=[0,x,c];else if(h<300)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];return[(r+m)*255,(g+m)*255,(b+m)*255]}
 function hueDist(a,b){let d=Math.abs(a-b);return Math.min(d,360-d)}
 function curveFn(x){if(state.curve=='soft'){let ss=x*x*(3-2*x);return x*.55+ss*.45;}if(state.curve=='strong'){let y=x<.5?2*x*x:1-2*(1-x)*(1-x);return y}if(state.curve=='matte')return .075+.85*x;if(state.curve=='fade')return .12+.76*x;return x}
-function processData(data){let exp=Math.pow(2,state.exposure),con=(100+state.contrast)/100;for(let i=0;i<data.length;i+=4){let r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255;
+function processData(data){let exp=rawEdit?1:Math.pow(2,state.exposure),con=(100+state.contrast)/100;for(let i=0;i<data.length;i+=4){let r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255;
 r*=exp;g*=exp;b*=exp;let lum=.2126*r+.7152*g+.0722*b;
 let sh=(1-lum)*(1-lum)*state.shadows/100*.22,hi=lum*lum*state.highlights/100*.22,wh=Math.pow(lum,4)*state.whites/100*.1,bl=Math.pow(1-lum,4)*state.blacks/100*.1;r+=sh+hi+wh+bl;g+=sh+hi+wh+bl;b+=sh+hi+wh+bl;
 r=(r-.5)*con+.5;g=(g-.5)*con+.5;b=(b-.5)*con+.5;
@@ -231,7 +231,7 @@ l=curveFn(Math.max(0,Math.min(1,l)));let z=hsl2rgb(h,s,l);data[i]=z[0];data[i+1]
 // While a slider is being dragged, a CSS-resolution render (same cost as v0.6.2) is upscaled into the
 // backing canvas; on release a full-resolution render replaces it. Export never uses this canvas.
 let interactive=false,lowCanvas=null,hiCanvas=null,dragStats=null,lastRender=null,finalJob=0,lastLowKey=null;
-function pickSource(longEdgeNeeded){return (workImg&&Math.max(workImg.width,workImg.height)>=longEdgeNeeded-0.5)?workImg:img}
+function pickSource(longEdgeNeeded){if(rawEdit)return rawDisplaySource();return (workImg&&Math.max(workImg.width,workImg.height)>=longEdgeNeeded-0.5)?workImg:img}
 function paintSource(c2,W,H,k,fw,fh){c2.save();c2.imageSmoothingEnabled=true;c2.imageSmoothingQuality='high';c2.translate(W/2,H/2);c2.rotate(state.rotation*Math.PI/180);c2.drawImage(pickSource(Math.max(fw,fh)*k),-fw*k/2,-fh*k/2,fw*k,fh*k);c2.restore()}
 function renderInto(c2,W,H,k,fw,fh){paintSource(c2,W,H,k,fw,fh);if(!before){let id=c2.getImageData(0,0,W,H);processData(id.data);c2.putImageData(id,0,0)}}
 const yieldToUI=()=>new Promise(r=>{const ch=new MessageChannel();ch.port1.onmessage=()=>r();ch.port2.postMessage(0)});
@@ -269,7 +269,7 @@ function drawCurve(){let W=curve.clientWidth*devicePixelRatio,H=curve.clientHeig
 function showCrop(){let b=$('#cropBox');if(!img||!state.ratio){b.style.display='none';return}let r=view.getBoundingClientRect(),w=r.width,h=w/state.ratio;if(h>r.height){h=r.height;w=h*state.ratio}b.style.display='block';b.style.width=w+'px';b.style.height=h+'px';b.style.left=(r.width-w)/2+'px';b.style.top=(r.height-h)/2+'px'}
 openBtn.onclick=()=>file.click();
 function setLoadedImage(source,name,work){lastLowKey=null;if(img&&img!==source)releaseSource(img);if(workImg&&workImg!==work&&workImg!==source)releaseSource(workImg);img=source;workImg=work||null;filename=name.replace(/\.[^.]+$/,'')+'-edited.jpg';empty.style.display='none';state=fresh();histStack=[];future=[];activeLook=null;bwOn=false;sync();setBaselines();setLookButtons();draw()}
-async function loadStandard(f){rawLoadToken++;previewShowing=false;rawSource=null;rawMeta=null;let u=URL.createObjectURL(f);let im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});setLoadedImage(im,f.name);URL.revokeObjectURL(u);showFileInfo(f,null,im.naturalWidth,im.naturalHeight)}
+async function loadStandard(f){rawLoadToken++;previewShowing=false;rawEdit=null;rawSource=null;rawMeta=null;let u=URL.createObjectURL(f);let im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});setLoadedImage(im,f.name);URL.revokeObjectURL(u);showFileInfo(f,null,im.naturalWidth,im.naturalHeight)}
 function showFileInfo(f,meta,w,h){let el=document.querySelector('#fileInfo');if(!el)return;let bits=[f.name,(f.name.split('.').pop()||'').toUpperCase(),w&&h?`${w}×${h}`:'',`${(f.size/1048576).toFixed(1)} MB`];let cam=meta&&(meta.make||meta.Make||meta.camera_make||'')+' '+(meta&& (meta.model||meta.Model||meta.camera_model||'')||'');if(cam&&cam.trim())bits.push(cam.trim());el.textContent=bits.filter(Boolean).join(' • ')}
 // v0.6.2: one LibRaw decoder (one worker) is created once and reused for every RAW.
 let rawDecoder=null,previewDecoder=null,LibRawClass=null,rawLoadToken=0,rawPending=null,previewShowing=false;
@@ -282,6 +282,27 @@ const RAW_OPTS={useCameraWb:true,useCameraMatrix:3,outputColor:1,outputBps:16,ga
 // gentle shadow lift, correct sRGB encoding. Built once as a 16-bit lookup table. User Exposure stays 0.00.
 const RAW_BASE_LUT=(()=>{const enc=v=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055,film=x=>(x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),k=1.2,lift=0.06,top=film(k),lut=new Uint8ClampedArray(65536);
  for(let i=0;i<65536;i++){let v=enc(Math.min(1,film(i/65535*k)/top));v=Math.min(1,v+lift*Math.pow(1-v,4));lut[i]=Math.round(v*255)}return lut})();
+// v0.6.5: RAW Exposure is applied to the 16-bit LINEAR data before the base tone curve.
+// rawEdit keeps the linear data: workLin (screen-size grid, used for display) and fullLin (full resolution, used for export).
+// Exposure 0 gives exactly the v0.6.4 render. Negative exposure is a plain linear multiply. Positive exposure is exact up to a
+// knee, then rolls off smoothly toward white, so highlights are compressed instead of hard-clipped.
+let rawEdit=null;const rawLutCache=new Map();
+const RAW_ENC=v=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055,RAW_FILM=x=>(x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14);
+function rawExposureLut(E){E=Math.round(E*100)/100;if(rawLutCache.has(E))return rawLutCache.get(E);if(E===0)return RAW_BASE_LUT;
+ const a=Math.pow(2,E),t=a>1?Math.max(0.5,1/a):1,k=1.2,lift=0.06,top=RAW_FILM(k),lut=new Uint8ClampedArray(65536);
+ for(let i=0;i<65536;i++){let z=i/65535*a;if(z>t)z=t+(1-t)*(1-Math.exp(-(z-t)/(1-t)));let v=RAW_ENC(Math.min(1,RAW_FILM(Math.min(1,z)*k)/top));v=Math.min(1,v+lift*Math.pow(1-v,4));lut[i]=Math.round(v*255)}
+ if(rawLutCache.size>40)rawLutCache.clear();rawLutCache.set(E,lut);return lut}
+function rawLinToCanvas(lin,E,cv){const L=rawExposureLut(E),w=lin.w,h=lin.h,d=lin.data;cv=cv||document.createElement('canvas');if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
+ const x=cv.getContext('2d'),id=x.createImageData(w,h),p=id.data,n=w*h*3;for(let a=0,b=0;a<n;a+=3,b+=4){p[b]=L[d[a]];p[b+1]=L[d[a+1]];p[b+2]=L[d[a+2]];p[b+3]=255}x.putImageData(id,0,0);return cv}
+// Display source for RAW: work-size render at the current exposure (or exposure 0 for Before). Rebuilt only when exposure changes.
+function rawDisplaySource(){if(before){if(!rawEdit.base)rawEdit.base=rawLinToCanvas(rawEdit.workLin,0);return rawEdit.base}
+ const E=Math.round(state.exposure*100)/100;if(rawEdit.curE!==E||!rawEdit.cur){rawEdit.cur=rawLinToCanvas(rawEdit.workLin,E,rawEdit.cur);rawEdit.curE=E}return rawEdit.cur}
+function linFromOut(out,meta){const d=out.data||out;let w=out.width||(meta&&(meta.width||meta.iwidth)),h=out.height||(meta&&(meta.height||meta.iheight));
+ if(!(d instanceof Uint16Array)){const u=new Uint16Array(w*h*3);for(let i=0;i<u.length;i++)u[i]=d[i]*257;return {data:u,w,h}}return {data:d,w,h}}
+// 2x2 average in linear light (full-resolution AHD data down to the display grid).
+function linHalf(lin){const W=lin.w,w=W>>1,h=lin.h>>1,s=lin.data,o=new Uint16Array(w*h*3);for(let y=0;y<h;y++){const r0=(2*y)*W*3,r1=r0+W*3,ro=y*w*3;for(let x=0;x<w;x++){const i=r0+x*6,j=r1+x*6,q=ro+x*3;
+ o[q]=(s[i]+s[i+3]+s[j]+s[j+3]+2)>>2;o[q+1]=(s[i+1]+s[i+4]+s[j+1]+s[j+4]+2)>>2;o[q+2]=(s[i+2]+s[i+5]+s[j+2]+s[j+5]+2)>>2}}return {data:o,w,h}}
+const geomSource=(w,h)=>({width:w,height:h,close(){}}); // RAW geometry placeholder: full-resolution size, no pixel copy
 async function rawToBitmap(out,meta){const d=out.data||out;let w=out.width||(meta&&(meta.width||meta.iwidth)),h=out.height||(meta&&(meta.height||meta.iheight));
  const rgba=new Uint8ClampedArray(w*h*4),L=RAW_BASE_LUT,n=w*h*3;
  if(d instanceof Uint16Array){for(let a=0,b=0;a<n;a+=3,b+=4){rgba[b]=L[d[a]];rgba[b+1]=L[d[a+1]];rgba[b+2]=L[d[a+2]];rgba[b+3]=255}}
@@ -311,20 +332,21 @@ async function loadRaw(f){
   const buf=await f.arrayBuffer(),bytes=new Uint8Array(buf),previewBytes=new Uint8Array(buf.slice(0));lap('readFile');
   // Fast preview: a half-size decode of the REAL RAW sensor data (not the embedded JPEG), on a second decoder,
   // in parallel with the unchanged full-resolution AHD decode. Same tone curve, so the swap does not shift brightness.
-  (async()=>{try{await pdec.open(previewBytes,Object.assign({},RAW_OPTS,{halfSize:true}));const po=await pdec.imageData();const r=await rawToBitmap(po,null);
-    if(token!==rawLoadToken||fullDone){r.bm.close();return}
-    previewShowing=true;setLoadedImage(r.bm,f.name,null);showFileInfo(f,null,r.w*2,r.h*2);tm.previewVisible=Math.round(performance.now()-T0);
+  (async()=>{try{await pdec.open(previewBytes,Object.assign({},RAW_OPTS,{halfSize:true}));const po=await pdec.imageData();const pl=linFromOut(po,null);
+    if(token!==rawLoadToken||fullDone)return;
+    previewShowing=true;rawEdit={workLin:pl,fullLin:null,cur:null,curE:null,base:null};setLoadedImage(geomSource(pl.w,pl.h),f.name,null);showFileInfo(f,null,pl.w*2,pl.h*2);tm.previewVisible=Math.round(performance.now()-T0);
     busy.textContent='Developing full-resolution RAW…'}catch(e){if(token===rawLoadToken){console.warn('RAW preview skipped',e);disposePreviewDecoder()}}})();
   await raw.open(bytes,Object.assign({},RAW_OPTS,{halfSize:false}));const tOpen=performance.now()-tl;tl=performance.now();
   const meta=await raw.metadata(false);lap('metadata');
   let out=await raw.imageData();tm.decodeDemosaic=Math.round(tOpen+performance.now()-tl);tl=performance.now();
   if(token!==rawLoadToken)return;
   // No PNG round trip: decoded pixels go straight into a full-resolution ImageBitmap.
-  const r=await rawToBitmap(out,meta);out=null;const full=r.bm,w=r.w,h=r.h;lap('rgbToRgbaAndBitmap');fullDone=true;
-  if(token!==rawLoadToken){full.close();return}
-  rawMeta=meta;let work=null;try{work=await makeWorkingPreview(full)}catch(e){work=null}lap('workingPreview');
-  if(token!==rawLoadToken){full.close();if(work)work.close();return}
-  if(previewShowing){swapSource(full,work)}else{setLoadedImage(full,f.name,work)}previewShowing=false;
+  const fullLin=linFromOut(out,meta);out=null;const w=fullLin.w,h=fullLin.h;fullDone=true;
+  const cap=Math.max(2560,Math.ceil(Math.max(screen.width||0,screen.height||0)*(window.devicePixelRatio||1)));
+  const workLin=Math.max(w,h)/2>=cap?linHalf(fullLin):fullLin;lap('linearWorkingData');
+  if(token!==rawLoadToken)return;
+  rawMeta=meta;const newEdit={workLin,fullLin,cur:null,curE:null,base:null};
+  if(previewShowing){rawEdit=newEdit;swapSource(geomSource(w,h),null)}else{rawEdit=newEdit;setLoadedImage(geomSource(w,h),f.name,null)}previewShowing=false;
   showFileInfo(f,rawMeta,w,h);lap('fullResolutionRender');
   tm.total=Math.round(performance.now()-T0);if(tm.previewVisible==null)tm.previewVisible=tm.total;
   if(DEBUG){console.log('[Lance Photo timing] RAW load '+f.name+' ('+w+'x'+h+')'+(coldStart?' cold start: decode includes WASM startup':' decoder reused'));console.table(tm);window.__lpTimings=(window.__lpTimings||[]).concat([Object.assign({file:f.name,coldStart},tm)])}
@@ -335,7 +357,7 @@ async function loadRaw(f){
 }
 file.onchange=async e=>{let f=e.target.files[0];if(!f)return;let ext=(f.name.split('.').pop()||'').toLowerCase();try{if(['arw','dng','nef','cr2','cr3','raf','rw2'].includes(ext))await loadRaw(f);else await loadStandard(f)}catch(err){console.error(err);alert('Could not open '+f.name+': '+(err&&err.message||err))}finally{file.value=''}}
 undoBtn.onclick=()=>{if(!histStack.length)return;future.push(clone(state));state=histStack.pop();sync();draw()};redoBtn.onclick=()=>{if(!future.length)return;histStack.push(clone(state));state=future.pop();sync();draw()};beforeBtn.onclick=()=>{before=!before;badge.style.display=before?'block':'none';draw()};resetBtn.onclick=()=>{checkpoint();state=fresh();sync();draw()};rotateBtn.onclick=()=>{checkpoint();state.rotation=(state.rotation+90)%360;draw()}
-function doExport(){if(!img)return alert('Open a photo first.');let rot=state.rotation%180!=0,w=rot?srcH(img):srcW(img),h=rot?srcW(img):srcH(img),o=document.createElement('canvas');o.width=w;o.height=h;let c=o.getContext('2d',{willReadFrequently:true});c.translate(w/2,h/2);c.rotate(state.rotation*Math.PI/180);c.drawImage(img,-srcW(img)/2,-srcH(img)/2);c.setTransform(1,0,0,1,0,0);let id=c.getImageData(0,0,w,h);processData(id.data);c.putImageData(id,0,0);if(state.ratio){let cw=w,ch=cw/state.ratio;if(ch>h){ch=h;cw=ch*state.ratio}let x=(w-cw)/2,y=(h-ch)/2,t=document.createElement('canvas');t.width=Math.round(cw);t.height=Math.round(ch);t.getContext('2d').drawImage(o,x,y,cw,ch,0,0,cw,ch);o=t}o.toBlob(blob=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)},'image/jpeg',.95)}
+function doExport(){if(!img)return alert('Open a photo first.');let rot=state.rotation%180!=0,w=rot?srcH(img):srcW(img),h=rot?srcW(img):srcH(img),o=document.createElement('canvas');o.width=w;o.height=h;let c=o.getContext('2d',{willReadFrequently:true});c.translate(w/2,h/2);c.rotate(state.rotation*Math.PI/180);c.drawImage(rawEdit&&rawEdit.fullLin?rawLinToCanvas(rawEdit.fullLin,state.exposure):img,-srcW(img)/2,-srcH(img)/2);c.setTransform(1,0,0,1,0,0);let id=c.getImageData(0,0,w,h);processData(id.data);c.putImageData(id,0,0);if(state.ratio){let cw=w,ch=cw/state.ratio;if(ch>h){ch=h;cw=ch*state.ratio}let x=(w-cw)/2,y=(h-ch)/2,t=document.createElement('canvas');t.width=Math.round(cw);t.height=Math.round(ch);t.getContext('2d').drawImage(o,x,y,cw,ch,0,0,cw,ch);o=t}o.toBlob(blob=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)},'image/jpeg',.95)}
 exportBtn.onclick=async()=>{if(rawPending){busy.style.display='block';busy.textContent='Finishing full-resolution RAW…';await rawPending;busy.style.display='none'}if(previewShowing)return alert('Export is blocked: the full-resolution RAW is not available.');doExport()};
 let resizeTimer=null;function onViewportChange(){beginInteractive();scheduleDraw();drawCurve();clearTimeout(resizeTimer);resizeTimer=setTimeout(endInteractive,200)}
 window.addEventListener('resize',onViewportChange);
