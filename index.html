@@ -129,7 +129,7 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 </style>
 </head><body>
 <header>
- <div class="brand">LANCE PHOTO <span class="ver">0.6 RAW BETA</span></div>
+ <div class="brand">LANCE PHOTO <span class="ver">0.6.1 RAW BETA</span></div>
  <input id="file" type="file" accept="image/*,.arw,.ARW,.dng,.DNG,.nef,.NEF,.cr2,.CR2,.cr3,.CR3,.raf,.RAF,.rw2,.RW2" hidden>
  <button class="btn" id="openBtn">Open</button>
  <button class="btn" id="undoBtn" disabled>↶</button>
@@ -170,6 +170,7 @@ input[type=range]{width:100%;accent-color:var(--gold)}
  <button class="mtool" data-mobile="mask"><span>◒</span>Mask</button>
  <button class="mtool" data-mobile="crop"><span>⌗</span>Crop</button>
 </nav>
+<div id="busy"></div>
 <script>
 const B=[['LIGHT',[['Exposure','exposure',-2,2,.01],['Contrast','contrast',-100,100,1],['Highlights','highlights',-100,100,1],['Shadows','shadows',-100,100,1],['Whites','whites',-100,100,1],['Blacks','blacks',-100,100,1]]],['COLOR',[['Temperature','temperature',-100,100,1],['Tint','tint',-100,100,1],['Saturation','saturation',-100,100,1],['Vibrance','vibrance',-100,100,1]]],['DETAIL',[['Clarity','clarity',-100,100,1],['Sharpness','sharpness',0,100,1]]]];
 const COLORS=[['Red','#ef5350',0],['Orange','#ff9800',30],['Yellow','#fdd835',60],['Green','#43a047',120],['Aqua','#26c6da',180],['Blue','#4285f4',220],['Purple','#8e5cc2',275],['Magenta','#e0529c',320]];
@@ -204,7 +205,7 @@ COLORS.forEach(([n,col])=>{let b=document.createElement('button');b.className='c
 document.querySelectorAll('.curve').forEach(b=>b.onclick=()=>{checkpoint();state.curve=b.dataset.c;document.querySelectorAll('.curve').forEach(x=>x.classList.toggle('active',x===b));drawCurve();draw()});document.querySelectorAll('.ratio').forEach(b=>b.onclick=()=>{checkpoint();state.ratio=+b.dataset.r;showCrop()})}
 function buildHSL(){let h=$('#hsl');h.innerHTML='';[['Hue','h'],['Saturation','s'],['Luminance','l']].forEach(([l,k])=>row(l,-100,100,1,()=>state.hsl[active][k],v=>state.hsl[active][k]=v,h))}
 function buildSkin(){let h=$('#skin');h.innerHTML='';[['Warmth','warmth'],['Saturation','saturation'],['Luminance','luminance'],['Evenness','evenness']].forEach(([l,k])=>row(l,-100,100,1,()=>state.skin[k],v=>state.skin[k]=v,h))}
-function sync(){Object.entries(basicInputs).forEach(([k,i])=>{i.value=state[k];i.parentElement.querySelector('output').value=(+state[k]).toFixed(i.step==.01?2:0)});buildHSL();buildSkin();drawCurve();btns()}
+function sync(){Object.entries(basicInputs).forEach(([k,i])=>{i.value=state[k];const o=i.parentElement.querySelector('.num');if(o)o.value=(+state[k]).toFixed(i.step==.01?2:0)});buildHSL();buildSkin();drawCurve();btns()}
 function rgb2hsl(r,g,b){r/=255;g/=255;b/=255;let mx=Math.max(r,g,b),mn=Math.min(r,g,b),h=0,s=0,l=(mx+mn)/2,d=mx-mn;if(d){s=l>.5?d/(2-mx-mn):d/(mx+mn);switch(mx){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;default:h=(r-g)/d+4}h*=60}return[h,s,l]}
 function hsl2rgb(h,s,l){h=((h%360)+360)%360;let c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,r=0,g=0,b=0;if(h<60)[r,g,b]=[c,x,0];else if(h<120)[r,g,b]=[x,c,0];else if(h<180)[r,g,b]=[0,c,x];else if(h<240)[r,g,b]=[0,x,c];else if(h<300)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];return[(r+m)*255,(g+m)*255,(b+m)*255]}
 function hueDist(a,b){let d=Math.abs(a-b);return Math.min(d,360-d)}
@@ -226,10 +227,13 @@ function showCrop(){let b=$('#cropBox');if(!img||!state.ratio){b.style.display='
 openBtn.onclick=()=>file.click();
 function setLoadedImage(source,name){img=source;filename=name.replace(/\.[^.]+$/,'')+'-edited.jpg';empty.style.display='none';state=fresh();histStack=[];future=[];activeLook=null;bwOn=false;sync();setBaselines();setLookButtons();draw()}
 async function loadStandard(f){rawSource=null;rawMeta=null;let u=URL.createObjectURL(f);let im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});setLoadedImage(im,f.name);URL.revokeObjectURL(u);showFileInfo(f,null,im.naturalWidth,im.naturalHeight)}
-function showFileInfo(f,meta,w,h){let el=document.querySelector('#fileInfo');if(!el)return;let bits=[f.name,(f.name.split('.').pop()||'').toUpperCase(),w&&h?`${w}×${h}`:'',`${(f.size/1048576).toFixed(1)} MB`];let cam=meta&&(meta.make||meta.Make||meta.camera_make||'')+' '+(meta&& (meta.model||meta.Model||meta.camera_model||'')||'');if(cam.trim())bits.push(cam.trim());el.textContent=bits.filter(Boolean).join(' • ')}
+function showFileInfo(f,meta,w,h){let el=document.querySelector('#fileInfo');if(!el)return;let bits=[f.name,(f.name.split('.').pop()||'').toUpperCase(),w&&h?`${w}×${h}`:'',`${(f.size/1048576).toFixed(1)} MB`];let cam=meta&&(meta.make||meta.Make||meta.camera_make||'')+' '+(meta&& (meta.model||meta.Model||meta.camera_model||'')||'');if(cam&&cam.trim())bits.push(cam.trim());el.textContent=bits.filter(Boolean).join(' • ')}
 async function loadRaw(f){
  busy.style.display='block';busy.textContent='Developing RAW…';
  try{
+  // Browsers block a page from starting a Worker straight from another site (the CDN).
+  // Wrap the CDN worker in a same-origin blob so the RAW decoder can start.
+  if(!window.__cdnWorkerShim){const RW=window.Worker;window.Worker=class extends RW{constructor(u,o){u=String(u);if(u.startsWith('https://cdn.jsdelivr.net/')){u=URL.createObjectURL(new Blob([`import ${JSON.stringify(u)};`],{type:'text/javascript'}))}super(u,o)}};window.__cdnWorkerShim=true}
   const mod=await import('https://cdn.jsdelivr.net/npm/libraw-wasm@1.6.0/dist/index.js');const LibRaw=mod.default;const raw=new LibRaw();rawSource={file:f,decoder:raw};
   await raw.open(new Uint8Array(await f.arrayBuffer()),{useCameraWb:true,useCameraMatrix:3,outputColor:1,outputBps:8,noAutoBright:true,highlight:3,userQual:3});
   rawMeta=await raw.metadata(false);const out=await raw.imageData();const d=out.data||out;let w=out.width||rawMeta.width||rawMeta.iwidth||rawMeta.raw_width,h=out.height||rawMeta.height||rawMeta.iheight||rawMeta.raw_height;
@@ -238,7 +242,7 @@ async function loadRaw(f){
   c.getContext('2d').putImageData(new ImageData(rgba,w,h),0,0);let blob=await new Promise(ok=>c.toBlob(ok,'image/png'));let u=URL.createObjectURL(blob);let im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});setLoadedImage(im,f.name);showFileInfo(f,rawMeta,w,h);URL.revokeObjectURL(u)
  }catch(err){console.error(err);rawSource=null;alert('RAW decode failed in this browser. Lance Photo did not fall back to the embedded JPEG. Please send me the error screenshot so we can fix the decoder.')}finally{busy.style.display='none'}
 }
-file.onchange=async e=>{let f=e.target.files[0];if(!f)return;let ext=(f.name.split('.').pop()||'').toLowerCase();if(['arw','dng','nef','cr2','cr3','raf','rw2'].includes(ext))await loadRaw(f);else await loadStandard(f);file.value=''}
+file.onchange=async e=>{let f=e.target.files[0];if(!f)return;let ext=(f.name.split('.').pop()||'').toLowerCase();try{if(['arw','dng','nef','cr2','cr3','raf','rw2'].includes(ext))await loadRaw(f);else await loadStandard(f)}catch(err){console.error(err);alert('Could not open '+f.name+': '+(err&&err.message||err))}finally{file.value=''}}
 undoBtn.onclick=()=>{if(!histStack.length)return;future.push(clone(state));state=histStack.pop();sync();draw()};redoBtn.onclick=()=>{if(!future.length)return;histStack.push(clone(state));state=future.pop();sync();draw()};beforeBtn.onclick=()=>{before=!before;badge.style.display=before?'block':'none';draw()};resetBtn.onclick=()=>{checkpoint();state=fresh();sync();draw()};rotateBtn.onclick=()=>{checkpoint();state.rotation=(state.rotation+90)%360;draw()}
 exportBtn.onclick=()=>{if(!img)return alert('Open a photo first.');let rot=state.rotation%180!=0,w=rot?img.naturalHeight:img.naturalWidth,h=rot?img.naturalWidth:img.naturalHeight,o=document.createElement('canvas');o.width=w;o.height=h;let c=o.getContext('2d',{willReadFrequently:true});c.translate(w/2,h/2);c.rotate(state.rotation*Math.PI/180);c.drawImage(img,-img.naturalWidth/2,-img.naturalHeight/2);c.setTransform(1,0,0,1,0,0);let id=c.getImageData(0,0,w,h);processData(id.data);c.putImageData(id,0,0);if(state.ratio){let cw=w,ch=cw/state.ratio;if(ch>h){ch=h;cw=ch*state.ratio}let x=(w-cw)/2,y=(h-ch)/2,t=document.createElement('canvas');t.width=Math.round(cw);t.height=Math.round(ch);t.getContext('2d').drawImage(o,x,y,cw,ch,0,0,cw,ch);o=t}o.toBlob(blob=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)},'image/jpeg',.95)}
 window.addEventListener('resize',()=>{draw();drawCurve()});build();drawCurve();
