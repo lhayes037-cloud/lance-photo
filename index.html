@@ -116,16 +116,27 @@ input[type=range]{width:100%;accent-color:var(--gold)}
  .empty b{font-size:20px}
 }
 </style>
+
+<style>
+.row output{cursor:text;border:1px solid transparent;border-radius:5px;padding:3px 4px;min-width:38px}
+.row output:hover{border-color:var(--line2);background:#0b0d10}
+.row output[contenteditable=true]:focus{outline:1px solid var(--gold);background:#080a0c;color:var(--gold2)}
+.stage.noFilm{padding-bottom:0}
+.stage.noFilm .filmstrip{display:none}
+.stage.noFilm #view{max-height:calc(100dvh - 82px)}
+#busy{position:fixed;right:18px;bottom:18px;z-index:99;background:#11151be8;border:1px solid var(--line2);border-radius:9px;padding:8px 11px;color:var(--gold2);display:none}
+@media(max-width:720px){#fitBtn,#zoom100Btn,#filmBtn{display:none}#chatShotBtn{font-size:10px!important;min-width:auto!important;padding:7px 8px!important}}
+</style>
 </head><body>
 <header>
- <div class="brand">LANCE PHOTO <span class="ver">0.5 PRO UI</span></div>
+ <div class="brand">LANCE PHOTO <span class="ver">0.5.1 TEST</span></div>
  <input id="file" type="file" accept="image/*" hidden>
  <button class="btn" id="openBtn">Open</button>
  <button class="btn" id="undoBtn" disabled>↶</button>
  <button class="btn" id="redoBtn" disabled>↷</button>
- <button class="btn" id="beforeBtn">Before</button>
+ <button class="btn" id="beforeBtn">Before</button><button class="btn" id="fitBtn">Fit</button><button class="btn" id="zoom100Btn">100%</button><button class="btn" id="filmBtn">Filmstrip</button>
  <button class="btn" id="installAppBtn">Install App</button>
- <button class="btn primary" id="exportBtn">Export</button>
+ <button class="btn" id="chatShotBtn" title="Capture for ChatGPT">📷 Chat</button><button class="btn primary" id="exportBtn">Export</button>
 </header>
 <main class="app">
  <nav class="toolrail">
@@ -214,6 +225,71 @@ document.querySelectorAll('.mtool').forEach(b=>b.onclick=()=>{
  document.querySelector('.panelTitle').textContent=labels[b.dataset.mobile]||'Adjustments';
 });
 document.querySelector('.panelTitle').onclick=()=>{if(innerWidth<=720)editPanel.classList.toggle('open')};
+
+
+// v0.5.1 testing helpers
+const stage051=document.querySelector('#stage'), view051=document.querySelector('#view');
+document.querySelector('#filmBtn')?.addEventListener('click',()=>stage051.classList.toggle('noFilm'));
+document.querySelector('#fitBtn')?.addEventListener('click',()=>{
+  view051.style.maxWidth='100%'; view051.style.maxHeight=stage051.classList.contains('noFilm')?'calc(100dvh - 82px)':'calc(100dvh - 164px)';
+  view051.style.width='auto'; view051.style.height='auto';
+});
+document.querySelector('#zoom100Btn')?.addEventListener('click',()=>{
+  view051.style.maxWidth='none'; view051.style.maxHeight='none'; view051.style.width='auto'; view051.style.height='auto';
+});
+
+// Exact numeric entry + double/triple click behavior
+document.querySelectorAll('.row').forEach(row=>{
+  const r=row.querySelector('input[type=range]'), o=row.querySelector('output');
+  if(!r||!o)return;
+  o.contentEditable='true'; o.spellcheck=false;
+  let baseline=Number(r.value), clicks=0, timer;
+  const apply=()=>{
+    let v=parseFloat(o.textContent);
+    if(Number.isNaN(v)){o.textContent=r.value;return}
+    v=Math.max(Number(r.min),Math.min(Number(r.max),v));
+    r.value=v; r.dispatchEvent(new Event('input',{bubbles:true})); r.dispatchEvent(new Event('change',{bubbles:true}));
+  };
+  o.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();apply();o.blur()}});
+  o.addEventListener('blur',apply);
+  r.addEventListener('click',()=>{
+    clicks++; clearTimeout(timer);
+    timer=setTimeout(()=>{
+      if(clicks===2){r.value=0;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))}
+      else if(clicks>=3){r.value=baseline;r.dispatchEvent(new Event('input',{bubbles:true}));r.dispatchEvent(new Event('change',{bubbles:true}))}
+      clicks=0;
+    },260);
+  });
+  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>setTimeout(()=>baseline=Number(r.value),120)));
+});
+
+// In-memory Chat capture. No download is intentionally created.
+document.querySelector('#chatShotBtn')?.addEventListener('click',async()=>{
+ try{
+   const c=document.createElement('canvas');
+   const scale=Math.min(1,1400/window.innerWidth);
+   c.width=Math.round(window.innerWidth*scale); c.height=Math.round(window.innerHeight*scale);
+   const x=c.getContext('2d'); x.fillStyle='#090a0c'; x.fillRect(0,0,c.width,c.height);
+   x.fillStyle='#f7f3eb'; x.font=`${Math.max(14,Math.round(18*scale))}px system-ui`;
+   x.fillText('LANCE PHOTO — TEST CAPTURE',16,30);
+   const r=view051.getBoundingClientRect();
+   if(view051.width&&view051.height){
+     const dx=Math.max(12,Math.round(r.left*scale)),dy=Math.max(50,Math.round(r.top*scale));
+     const dw=Math.min(c.width-dx-12,Math.round(r.width*scale)),dh=Math.min(c.height-dy-20,Math.round(r.height*scale));
+     x.drawImage(view051,dx,dy,dw,dh);
+   }
+   const blob=await new Promise(ok=>c.toBlob(ok,'image/png'));
+   const f=new File([blob],'lance-photo-test.png',{type:'image/png'});
+   if(navigator.share && (!navigator.canShare || navigator.canShare({files:[f]}))){
+     await navigator.share({files:[f],title:'Lance Photo test capture'});
+   } else if(navigator.clipboard && window.ClipboardItem){
+     await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+     alert('Test capture copied. Return to ChatGPT and paste it.');
+   } else {
+     alert('This browser cannot share the in-memory capture. Use your normal screenshot method.');
+   }
+ }catch(e){if(e.name!=='AbortError')alert('Chat capture is not available in this browser.');}
+});
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(()=>{}));
