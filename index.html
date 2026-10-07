@@ -125,16 +125,16 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 .stage.noFilm .filmstrip{display:none}
 .stage.noFilm #view{max-height:calc(100dvh - 82px)}
 #busy{position:fixed;right:18px;bottom:18px;z-index:99;background:#11151be8;border:1px solid var(--line2);border-radius:9px;padding:8px 11px;color:var(--gold2);display:none}
-@media(max-width:720px){#fitBtn,#zoom100Btn,#filmBtn,#zoomPct{display:none}#chatShotBtn{font-size:10px!important;min-width:auto!important;padding:7px 8px!important}}
+@media(max-width:720px){#fitBtn,#zoom100Btn,#filmBtn,#zoomPct,#rgbRead{display:none}#chatShotBtn{font-size:10px!important;min-width:auto!important;padding:7px 8px!important}}
 </style>
 </head><body>
 <header>
- <div class="brand">LANCE PHOTO <span class="ver">0.6.6 ZOOM &amp; RAW QUALITY</span></div>
+ <div class="brand">LANCE PHOTO <span class="ver">0.6.7 RAW LOOK</span></div>
  <input id="file" type="file" accept="image/*,.arw,.ARW,.dng,.DNG,.nef,.NEF,.cr2,.CR2,.cr3,.CR3,.raf,.RAF,.rw2,.RW2" hidden>
  <button class="btn" id="openBtn">Open</button>
  <button class="btn" id="undoBtn" disabled>↶</button>
  <button class="btn" id="redoBtn" disabled>↷</button>
- <button class="btn" id="beforeBtn">Before</button><button class="btn" id="fitBtn">Fit</button><button class="btn" id="zoom100Btn">100%</button><span id="zoomPct" title="Zoom" style="min-width:66px;text-align:center;color:#c9cdd3;font-size:11px;font-variant-numeric:tabular-nums">Fit</span><button class="btn" id="filmBtn">Filmstrip</button>
+ <button class="btn" id="beforeBtn">Before</button><button class="btn" id="fitBtn">Fit</button><button class="btn" id="zoom100Btn">100%</button><span id="rgbRead" title="R G B and brightness under the cursor" style="min-width:150px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;color:#9aa3ad"></span><span id="zoomPct" title="Zoom" style="min-width:66px;text-align:center;color:#c9cdd3;font-size:11px;font-variant-numeric:tabular-nums">Fit</span><button class="btn" id="filmBtn">Filmstrip</button>
  <button class="btn" id="installAppBtn">Install App</button>
  <button class="btn" id="chatShotBtn" title="Capture for ChatGPT">📷 Chat</button><button class="btn primary" id="exportBtn">Export</button>
 </header>
@@ -321,14 +321,20 @@ function wbMultipliers(temp,tint){if(!temp&&!tint)return [1,1,1];const ref=xyToL
  const m=[c[0]/c[1]*ref[1]/ref[0],1,c[2]/c[1]*ref[1]/ref[2]];m[1]*=Math.pow(2,-tint/100*0.35);const lum=.2126*m[0]+.7152*m[1]+.0722*m[2];return m.map(v=>v/lum)}
 // RAW lookup tables: per-channel white balance x exposure in linear light, then the v0.6.4/v0.6.5 base tone curve.
 function rawLutKey(){return [Math.round(state.exposure*100)/100,Math.round(state.temperature),Math.round(state.tint)].join('|')}
-function rawChannelLut(gain){gain=Math.round(gain*10000)/10000;const ck='g'+gain;if(rawLutCache.has(ck))return rawLutCache.get(ck);if(gain===1){rawLutCache.set(ck,RAW_BASE_LUT);return RAW_BASE_LUT}
+// v0.6.7 base RAW look (applies to every RAW at Exposure 0; not tuned to one photo):
+// ev = baseline exposure in linear light, con = smooth S-contrast strength (rolls off at both ends, no clipping),
+// sat = brightness-preserving colour boost that eases off for colours that are already saturated.
+const RAW_LOOK={ev:-0.6,con:0.8,sat:1.35};
+function rawChannelLut(gain){gain=Math.round(gain*10000)/10000;const ck='g'+gain+'|'+RAW_LOOK.con;if(rawLutCache.has(ck))return rawLutCache.get(ck);
  const t=gain>1?Math.max(0.5,1/gain):1,k=1.2,lift=0.06,top=RAW_FILM(k),lut=new Uint8ClampedArray(65536);
- for(let i=0;i<65536;i++){let z=i/65535*gain;if(z>t)z=t+(1-t)*(1-Math.exp(-(z-t)/(1-t)));let v=RAW_ENC(Math.min(1,RAW_FILM(Math.min(1,z)*k)/top));v=Math.min(1,v+lift*Math.pow(1-v,4));lut[i]=Math.round(v*255)}
+ for(let i=0;i<65536;i++){let z=i/65535*gain;if(z>t)z=t+(1-t)*(1-Math.exp(-(z-t)/(1-t)));let v=RAW_ENC(Math.min(1,RAW_FILM(Math.min(1,z)*k)/top));v=Math.min(1,v+lift*Math.pow(1-v,4));v=v+RAW_LOOK.con*(v*v*(3-2*v)-v);lut[i]=Math.round(v*255)}
  if(rawLutCache.size>60)rawLutCache.clear();rawLutCache.set(ck,lut);return lut}
-function rawLuts(E,temp,tint){const a=Math.pow(2,Math.round(E*100)/100),m=wbMultipliers(Math.round(temp),Math.round(tint));return m.map(v=>rawChannelLut(a*v))}
+function rawLuts(E,temp,tint){const a=Math.pow(2,Math.round(E*100)/100+RAW_LOOK.ev),m=wbMultipliers(Math.round(temp),Math.round(tint));return m.map(v=>rawChannelLut(a*v))}
 function rawExposureLut(E){return rawChannelLut(Math.pow(2,Math.round(E*100)/100))}
 function rawLinRegion(lin,x0,y0,w,h,L,cv){cv=cv||document.createElement('canvas');if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}const x=cv.getContext('2d'),id=x.createImageData(w,h),p=id.data,d=lin.data,W=lin.w,[LR,LG,LB]=L;
- for(let y=0;y<h;y++){let a=((y0+y)*W+x0)*3,b=y*w*4;for(let i=0;i<w;i++,a+=3,b+=4){p[b]=LR[d[a]];p[b+1]=LG[d[a+1]];p[b+2]=LB[d[a+2]];p[b+3]=255}}x.putImageData(id,0,0);return cv}
+ const S=RAW_LOOK.sat-1;for(let y=0;y<h;y++){let a=((y0+y)*W+x0)*3,b=y*w*4;for(let i=0;i<w;i++,a+=3,b+=4){let r=LR[d[a]],g=LG[d[a+1]],bb=LB[d[a+2]];
+  if(S){const Y=.2126*r+.7152*g+.0722*bb,mx=Math.max(r,g,bb),mn=Math.min(r,g,bb),f=1+S*(1-(mx-mn)/(mx+1));r=Y+(r-Y)*f;g=Y+(g-Y)*f;bb=Y+(bb-Y)*f}
+  p[b]=r;p[b+1]=g;p[b+2]=bb;p[b+3]=255}}x.putImageData(id,0,0);return cv}
 function rawLinToCanvas(lin,L,cv){if(typeof L==='number')L=rawLuts(L,0,0);return rawLinRegion(lin,0,0,lin.w,lin.h,L,cv)}
 // Display source for RAW: work-size render at the current exposure/white balance (or neutral for Before). Rebuilt only when those change.
 function rawDisplaySource(){if(before){if(!rawEdit.base)rawEdit.base=rawLinToCanvas(rawEdit.workLin,rawLuts(0,0,0));return rawEdit.base}
@@ -457,6 +463,13 @@ view051.addEventListener('pointerdown',e=>{if(!img||!lastGeom||lastGeom.fit||e.p
 view051.addEventListener('pointermove',e=>{if(!panning||!lastGeom)return;const g=lastGeom;panX=(panning.cx-(e.clientX-panning.x)/g.z)/g.iw;panY=(panning.cy-(e.clientY-panning.y)/g.z)/g.ih;scheduleDraw()});
 function endPan(){if(!panning)return;panning=null;endInteractive();if(lastGeom)updateZoomLabel(lastGeom)}
 view051.addEventListener('pointerup',endPan);view051.addEventListener('pointercancel',endPan);view051.addEventListener('lostpointercapture',endPan);
+
+// v0.6.7 colour readout: R, G, B and brightness (Rec.709 luma) of the displayed, edited pixel under the cursor.
+const rgbRead=document.querySelector('#rgbRead');
+view051.addEventListener('pointermove',e=>{if(!img||!rgbRead||e.pointerType==='touch')return;const r=view.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)*view.width/r.width),y=Math.floor((e.clientY-r.top)*view.height/r.height);
+ if(x<0||y<0||x>=view.width||y>=view.height)return;const p=ctx.getImageData(x,y,1,1).data,L=Math.round(.2126*p[0]+.7152*p[1]+.0722*p[2]);
+ rgbRead.innerHTML='<span style="color:#ff7a7a">'+p[0]+'</span> <span style="color:#6fdc8c">'+p[1]+'</span> <span style="color:#7aa8ff">'+p[2]+'</span> <span style="color:#e8e2d9">'+L+'</span>'});
+view051.addEventListener('pointerleave',()=>{if(rgbRead)rgbRead.textContent=''});
 
 // In-memory Chat capture. No download is intentionally created.
 document.querySelector('#chatShotBtn')?.addEventListener('click',async()=>{
