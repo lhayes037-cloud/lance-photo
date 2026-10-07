@@ -51,7 +51,7 @@ header{
  min-width:0;position:relative;display:grid;place-items:center;
  background:radial-gradient(circle at 50% 45%,#181b20,#07080a 70%);overflow:hidden;padding-bottom:84px
 }
-.photo{position:relative;max-width:100%;max-height:100%;filter:drop-shadow(0 15px 32px #0009)}
+.photo{position:relative;max-width:100%;max-height:100%;overflow:hidden;filter:drop-shadow(0 15px 32px #0009)}
 #view{display:block;max-width:100%;max-height:calc(100dvh - 164px)}
 .empty{position:absolute;text-align:center;color:var(--muted);letter-spacing:.04em}
 .empty b{display:block;color:#f6ead8;font-size:25px;margin-bottom:8px;letter-spacing:.12em}
@@ -125,16 +125,16 @@ input[type=range]{width:100%;accent-color:var(--gold)}
 .stage.noFilm .filmstrip{display:none}
 .stage.noFilm #view{max-height:calc(100dvh - 82px)}
 #busy{position:fixed;right:18px;bottom:18px;z-index:99;background:#11151be8;border:1px solid var(--line2);border-radius:9px;padding:8px 11px;color:var(--gold2);display:none}
-@media(max-width:720px){#fitBtn,#zoom100Btn,#filmBtn{display:none}#chatShotBtn{font-size:10px!important;min-width:auto!important;padding:7px 8px!important}}
+@media(max-width:720px){#fitBtn,#zoom100Btn,#filmBtn,#zoomPct{display:none}#chatShotBtn{font-size:10px!important;min-width:auto!important;padding:7px 8px!important}}
 </style>
 </head><body>
 <header>
- <div class="brand">LANCE PHOTO <span class="ver">0.6.5 EXPOSURE FIX</span></div>
+ <div class="brand">LANCE PHOTO <span class="ver">0.6.6 ZOOM &amp; RAW QUALITY</span></div>
  <input id="file" type="file" accept="image/*,.arw,.ARW,.dng,.DNG,.nef,.NEF,.cr2,.CR2,.cr3,.CR3,.raf,.RAF,.rw2,.RW2" hidden>
  <button class="btn" id="openBtn">Open</button>
  <button class="btn" id="undoBtn" disabled>↶</button>
  <button class="btn" id="redoBtn" disabled>↷</button>
- <button class="btn" id="beforeBtn">Before</button><button class="btn" id="fitBtn">Fit</button><button class="btn" id="zoom100Btn">100%</button><button class="btn" id="filmBtn">Filmstrip</button>
+ <button class="btn" id="beforeBtn">Before</button><button class="btn" id="fitBtn">Fit</button><button class="btn" id="zoom100Btn">100%</button><span id="zoomPct" title="Zoom" style="min-width:66px;text-align:center;color:#c9cdd3;font-size:11px;font-variant-numeric:tabular-nums">Fit</span><button class="btn" id="filmBtn">Filmstrip</button>
  <button class="btn" id="installAppBtn">Install App</button>
  <button class="btn" id="chatShotBtn" title="Capture for ChatGPT">📷 Chat</button><button class="btn primary" id="exportBtn">Export</button>
 </header>
@@ -216,11 +216,11 @@ function rgb2hsl(r,g,b){r/=255;g/=255;b/=255;let mx=Math.max(r,g,b),mn=Math.min(
 function hsl2rgb(h,s,l){h=((h%360)+360)%360;let c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,r=0,g=0,b=0;if(h<60)[r,g,b]=[c,x,0];else if(h<120)[r,g,b]=[x,c,0];else if(h<180)[r,g,b]=[0,c,x];else if(h<240)[r,g,b]=[0,x,c];else if(h<300)[r,g,b]=[x,0,c];else[r,g,b]=[c,0,x];return[(r+m)*255,(g+m)*255,(b+m)*255]}
 function hueDist(a,b){let d=Math.abs(a-b);return Math.min(d,360-d)}
 function curveFn(x){if(state.curve=='soft'){let ss=x*x*(3-2*x);return x*.55+ss*.45;}if(state.curve=='strong'){let y=x<.5?2*x*x:1-2*(1-x)*(1-x);return y}if(state.curve=='matte')return .075+.85*x;if(state.curve=='fade')return .12+.76*x;return x}
-function processData(data){let exp=rawEdit?1:Math.pow(2,state.exposure),con=(100+state.contrast)/100;for(let i=0;i<data.length;i+=4){let r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255;
+function processData(data){const wbJ=(!rawEdit&&(state.temperature||state.tint))?jpegWbLuts():null;let exp=rawEdit?1:Math.pow(2,state.exposure),con=(100+state.contrast)/100;for(let i=0;i<data.length;i+=4){let r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255;
 r*=exp;g*=exp;b*=exp;let lum=.2126*r+.7152*g+.0722*b;
 let sh=(1-lum)*(1-lum)*state.shadows/100*.22,hi=lum*lum*state.highlights/100*.22,wh=Math.pow(lum,4)*state.whites/100*.1,bl=Math.pow(1-lum,4)*state.blacks/100*.1;r+=sh+hi+wh+bl;g+=sh+hi+wh+bl;b+=sh+hi+wh+bl;
 r=(r-.5)*con+.5;g=(g-.5)*con+.5;b=(b-.5)*con+.5;
-r*=1+state.temperature/100*.15+state.tint/100*.04;b*=1-state.temperature/100*.15+state.tint/100*.04;g*=1-state.tint/100*.07;
+if(wbJ){r=wbJ[0][Math.round(Math.max(0,Math.min(1,r))*4095)];g=wbJ[1][Math.round(Math.max(0,Math.min(1,g))*4095)];b=wbJ[2][Math.round(Math.max(0,Math.min(1,b))*4095)]}
 r=Math.max(0,Math.min(1,r));g=Math.max(0,Math.min(1,g));b=Math.max(0,Math.min(1,b));let [h,s,l]=rgb2hsl(r*255,g*255,b*255);
 s=Math.max(0,Math.min(1,s*(1+state.saturation/100)));s=Math.max(0,Math.min(1,s+(1-s)*state.vibrance/100*.35));
 COLORS.forEach(([n,c,hc])=>{let d=hueDist(h,hc),w=Math.max(0,1-d/52);w=w*w*(3-2*w);if(w){let q=state.hsl[n];h+=q.h*.22*w;s=Math.max(0,Math.min(1,s+q.s/100*.45*w));l=Math.max(0,Math.min(1,l+q.l/100*.28*w))}});
@@ -230,45 +230,69 @@ l=curveFn(Math.max(0,Math.min(1,l)));let z=hsl2rgb(h,s,l);data[i]=z[0];data[i+1]
 // store holds devicePixelRatio x more pixels so high-DPI screens show real detail instead of a 2x stretch.
 // While a slider is being dragged, a CSS-resolution render (same cost as v0.6.2) is upscaled into the
 // backing canvas; on release a full-resolution render replaces it. Export never uses this canvas.
-let interactive=false,lowCanvas=null,hiCanvas=null,dragStats=null,lastRender=null,finalJob=0,lastLowKey=null;
-function pickSource(longEdgeNeeded){if(rawEdit)return rawDisplaySource();return (workImg&&Math.max(workImg.width,workImg.height)>=longEdgeNeeded-0.5)?workImg:img}
-function paintSource(c2,W,H,k,fw,fh){c2.save();c2.imageSmoothingEnabled=true;c2.imageSmoothingQuality='high';c2.translate(W/2,H/2);c2.rotate(state.rotation*Math.PI/180);c2.drawImage(pickSource(Math.max(fw,fh)*k),-fw*k/2,-fh*k/2,fw*k,fh*k);c2.restore()}
-function renderInto(c2,W,H,k,fw,fh){paintSource(c2,W,H,k,fw,fh);if(!before){let id=c2.getImageData(0,0,W,H);processData(id.data);c2.putImageData(id,0,0)}}
+let interactive=false,lowCanvas=null,hiCanvas=null,dragStats=null,lastRender=null,finalJob=0,lastLowKey=null,panning=null;
+// v0.6.6 viewport: zoom=null means Fit. Otherwise zoom = CSS pixels per image pixel (1 = real 100%).
+// panX/panY = viewport centre as a fraction of the (rotated) image. lastGeom describes the current view.
+let zoom=null,panX=0.5,panY=0.5,lastGeom=null,regionCache=null;const ZOOM_MAX=4;
+function viewSource(s,cx,cy,W,H,allowFull,fw,fh,iw,ih){
+ if(!rawEdit)return {src:img,x:0,y:0,w:fw,h:fh};
+ const wl=rawEdit.workLin,ratio=wl.w/fw;
+ if(!allowFull||!rawEdit.fullLin||s<=ratio*1.02)return {src:rawDisplaySource(),x:0,y:0,w:fw,h:fh};
+ // Visible rectangle in rotated-image space -> original image space (90 degree steps), padded for the detail filters.
+ const hx=W/(2*s),hy=H/(2*s),rot=((state.rotation%360)+360)%360,pts=[[cx-hx,cy-hy],[cx+hx,cy-hy],[cx-hx,cy+hy],[cx+hx,cy+hy]].map(([X,Y])=>{const dx=X-iw/2,dy=Y-ih/2;
+  return rot===90?[fw/2+dy,fh/2-dx]:rot===180?[fw/2-dx,fh/2-dy]:rot===270?[fw/2-dy,fh/2+dx]:[fw/2+dx,fh/2+dy]});
+ const pad=Math.ceil(detailPad(fw,fh))+2,x0=Math.max(0,Math.floor(Math.min(...pts.map(p=>p[0])))-pad),y0=Math.max(0,Math.floor(Math.min(...pts.map(p=>p[1])))-pad),
+  x1=Math.min(fw,Math.ceil(Math.max(...pts.map(p=>p[0])))+pad),y1=Math.min(fh,Math.ceil(Math.max(...pts.map(p=>p[1])))+pad);
+ const key=[x0,y0,x1,y1,rawLutKey(),before].join('|');
+ if(!regionCache||regionCache.key!==key||regionCache.lin!==rawEdit.fullLin){const cv=rawLinRegion(rawEdit.fullLin,x0,y0,x1-x0,y1-y0,before?rawLuts(0,0,0):rawLuts(state.exposure,state.temperature,state.tint),regionCache&&regionCache.cv);regionCache={key,cv,lin:rawEdit.fullLin}}
+ return {src:regionCache.cv,x:x0,y:y0,w:x1-x0,h:y1-y0,region:true}}
+// Paint the view: s = canvas pixels per image pixel, (cx,cy) = view centre in rotated-image pixels.
+function paintSource(c2,W,H,s,cx,cy,allowFull){const fw=srcW(img),fh=srcH(img),rot=state.rotation%180!=0,iw=rot?fh:fw,ih=rot?fw:fh,v=viewSource(s,cx,cy,W,H,allowFull,fw,fh,iw,ih);
+ c2.save();c2.imageSmoothingEnabled=true;c2.imageSmoothingQuality='high';c2.translate(W/2-(cx-iw/2)*s,H/2-(cy-ih/2)*s);c2.rotate(state.rotation*Math.PI/180);
+ c2.drawImage(v.src,(-fw/2+v.x)*s,(-fh/2+v.y)*s,v.w*s,v.h*s);c2.restore();return v}
+function renderInto(c2,W,H,s,cx,cy,allowFull){const v=paintSource(c2,W,H,s,cx,cy,allowFull);if(!before){let id=c2.getImageData(0,0,W,H);detailPass(id.data,W,H,s);processData(id.data);c2.putImageData(id,0,0)}return v}
 const yieldToUI=()=>new Promise(r=>{const ch=new MessageChannel();ch.port1.onmessage=()=>r();ch.port2.postMessage(0)});
-// Full-DPR render, computed in row chunks so the UI stays responsive, then swapped in all at once.
+// Full-DPR render: detail filters, then per-pixel edits in row chunks so the UI stays responsive; swapped in all at once.
 async function finalRender(job,g){const t0=performance.now();hiCanvas=hiCanvas||document.createElement('canvas');if(hiCanvas.width!==g.bw||hiCanvas.height!==g.bh){hiCanvas.width=g.bw;hiCanvas.height=g.bh}
- const hc=hiCanvas.getContext('2d',{willReadFrequently:true});hc.clearRect(0,0,g.bw,g.bh);paintSource(hc,g.bw,g.bh,g.k,g.fw,g.fh);const id=hc.getImageData(0,0,g.bw,g.bh),d=id.data;
- const rowBytes=g.bw*4,rowsPer=Math.max(1,Math.floor(160000/g.bw));let maxBlock=performance.now()-t0,chunks=0;
+ const hc=hiCanvas.getContext('2d',{willReadFrequently:true});hc.clearRect(0,0,g.bw,g.bh);const v=paintSource(hc,g.bw,g.bh,g.s,g.cx,g.cy,true);const id=hc.getImageData(0,0,g.bw,g.bh),d=id.data;
+ await yieldToUI();if(job!==finalJob)return;const cd=performance.now();detailPass(d,g.bw,g.bh,g.s);let maxBlock=Math.max(cd-t0,performance.now()-cd);
+ const rowBytes=g.bw*4,rowsPer=Math.max(1,Math.floor(160000/g.bw));let chunks=0;
  for(let y=0;y<g.bh;y+=rowsPer){await yieldToUI();if(job!==finalJob)return;const c0=performance.now();processData(d.subarray(y*rowBytes,Math.min(g.bh,y+rowsPer)*rowBytes));chunks++;maxBlock=Math.max(maxBlock,performance.now()-c0)}
  await yieldToUI();if(job!==finalJob||view.width!==g.bw||view.height!==g.bh)return;
  const c1=performance.now();ctx.putImageData(id,0,0);updateHist();maxBlock=Math.max(maxBlock,performance.now()-c1);lastLowKey=null;
- lastRender=Object.assign({},g.info,{mode:'final',ms:Math.round(performance.now()-t0),longestUiBlockMs:Math.round(maxBlock),chunks,source:pickSource(Math.max(g.fw,g.fh)*g.k)===workImg?'working preview':'full resolution'});
+ lastRender=Object.assign({},g.info,{mode:'final',ms:Math.round(performance.now()-t0),longestUiBlockMs:Math.round(maxBlock),chunks,source:v.region?'full-resolution region '+v.w+'x'+v.h:(rawEdit?'working preview':'full resolution')});
  window.__lpRender=lastRender;if(DEBUG)console.log('[Lance Photo display] final render',lastRender)}
-function draw(){if(!img)return;const t0=performance.now();finalJob++;let st=$('#stage'),rot=state.rotation%180!=0,fw=srcW(img),fh=srcH(img),iw=rot?fh:fw,ih=rot?fw:fh,sc=Math.min((st.clientWidth-18)/iw,(st.clientHeight-18)/ih,1),cssW=iw*sc,cssH=ih*sc;
+function computeGeom(){const st=$('#stage'),rot=state.rotation%180!=0,fw=srcW(img),fh=srcH(img),iw=rot?fh:fw,ih=rot?fw:fh,sc=Math.min((st.clientWidth-18)/iw,(st.clientHeight-18)/ih,1);let cssW=iw*sc,cssH=ih*sc;
  const mh=parseFloat(getComputedStyle(view).maxHeight);if(mh>0&&cssH>mh){cssW*=mh/cssH;cssH=mh}
- cssW=Math.max(1,Math.round(cssW));cssH=Math.max(1,Math.round(cssH));
- const D=window.devicePixelRatio||1,k=Math.min(cssW*D/iw,cssH*D/ih,1),bw=Math.max(1,Math.round(iw*k)),bh=Math.max(1,Math.round(ih*k));
- let resized=false;if(view.width!==bw||view.height!==bh){view.width=bw;view.height=bh;resized=true}
- view.style.width=cssW+'px';view.style.height=cssH+'px';
- const kLow=Math.min(cssW/iw,cssH/ih,1),info={cssW,cssH,dpr:D,backingW:bw,backingH:bh};
- if(before||!(k>kLow*1.25)){ctx.clearRect(0,0,bw,bh);renderInto(ctx,bw,bh,k,fw,fh);updateHist();showCrop();lastLowKey=null;
-  lastRender=Object.assign({},info,{mode:'final',ms:Math.round(performance.now()-t0),renderW:bw,renderH:bh,source:pickSource(Math.max(fw,fh)*k)===workImg?'working preview':'full resolution'});window.__lpRender=lastRender;if(DEBUG&&!interactive)console.log('[Lance Photo display] final render',lastRender);return}
- // Quick render at CSS resolution (same cost as v0.6.2), upscaled into the DPR backing canvas.
- const key=JSON.stringify(state)+'|'+bw+'x'+bh+'|'+(img===null?0:srcW(img));
- const lw=Math.max(1,Math.round(iw*kLow)),lh=Math.max(1,Math.round(ih*kLow));
+ cssW=Math.max(1,Math.round(cssW));cssH=Math.max(1,Math.round(cssH));const zFit=Math.min(cssW/iw,cssH/ih),D=window.devicePixelRatio||1;
+ if(zoom!=null&&zoom<=zFit*1.001){zoom=null;panX=panY=0.5}
+ if(zoom==null){const k=Math.min(cssW*D/iw,cssH*D/ih,1);return {fw,fh,iw,ih,D,zFit,z:zFit,fit:true,cssW,cssH,bw:Math.max(1,Math.round(iw*k)),bh:Math.max(1,Math.round(ih*k)),s:k,cx:iw/2,cy:ih/2}}
+ const z=Math.min(zoom,ZOOM_MAX),availW=st.clientWidth-18,availH=Math.min(st.clientHeight-18,mh>0?mh:1e9),vw=Math.max(1,Math.round(Math.min(iw*z,availW))),vh=Math.max(1,Math.round(Math.min(ih*z,availH)));
+ const hx=vw/(2*z),hy=vh/(2*z);let cx=panX*iw,cy=panY*ih;cx=vw>=iw*z?iw/2:Math.min(iw-hx,Math.max(hx,cx));cy=vh>=ih*z?ih/2:Math.min(ih-hy,Math.max(hy,cy));panX=cx/iw;panY=cy/ih;
+ return {fw,fh,iw,ih,D,zFit,z,fit:false,cssW:vw,cssH:vh,bw:Math.max(1,Math.round(vw*D)),bh:Math.max(1,Math.round(vh*D)),s:z*D,cx,cy}}
+function updateZoomLabel(g){const el=document.querySelector('#zoomPct');if(el)el.textContent=(g.fit?'Fit ':'')+Math.round(g.z*100)+'%';view.style.cursor=g.fit?'':(panning?'grabbing':'grab')}
+function draw(){if(!img)return;const t0=performance.now();finalJob++;const g=computeGeom();lastGeom=g;
+ let resized=false;if(view.width!==g.bw||view.height!==g.bh){view.width=g.bw;view.height=g.bh;resized=true}
+ view.style.width=g.cssW+'px';view.style.height=g.cssH+'px';updateZoomLabel(g);
+ const info={cssW:g.cssW,cssH:g.cssH,dpr:g.D,backingW:g.bw,backingH:g.bh,zoomPct:Math.round(g.z*100)};
+ const lw=Math.max(1,Math.min(g.bw,Math.round(g.cssW))),lh=Math.max(1,Math.min(g.bh,Math.round(g.cssH))),sLow=g.s*lw/g.bw;
+ if(before||!(g.bw>lw*1.25)){ctx.clearRect(0,0,g.bw,g.bh);const v=renderInto(ctx,g.bw,g.bh,g.s,g.cx,g.cy,true);updateHist();showCrop();lastLowKey=null;
+  lastRender=Object.assign({},info,{mode:'final',ms:Math.round(performance.now()-t0),renderW:g.bw,renderH:g.bh,source:v.region?'full-resolution region':(rawEdit?'working preview':'full resolution')});window.__lpRender=lastRender;if(DEBUG&&!interactive)console.log('[Lance Photo display] final render',lastRender);return}
+ // Quick render at CSS resolution from the working data, upscaled into the DPR backing canvas.
+ const key=JSON.stringify(state)+'|'+g.bw+'x'+g.bh+'|'+srcW(img)+'|'+g.z.toFixed(5)+'|'+g.cx.toFixed(2)+','+g.cy.toFixed(2);
  if(resized||key!==lastLowKey){lowCanvas=lowCanvas||document.createElement('canvas');if(lowCanvas.width!==lw||lowCanvas.height!==lh){lowCanvas.width=lw;lowCanvas.height=lh}
-  const lc=lowCanvas.getContext('2d',{willReadFrequently:true});lc.clearRect(0,0,lw,lh);renderInto(lc,lw,lh,kLow,fw,fh);ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='low';ctx.drawImage(lowCanvas,0,0,bw,bh);ctx.restore();updateHist();lastLowKey=key}
+  const lc=lowCanvas.getContext('2d',{willReadFrequently:true});lc.clearRect(0,0,lw,lh);renderInto(lc,lw,lh,sLow,g.cx,g.cy,false);ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='low';ctx.drawImage(lowCanvas,0,0,g.bw,g.bh);ctx.restore();updateHist();lastLowKey=key}
  showCrop();const ms=performance.now()-t0;
  lastRender=Object.assign({},info,{mode:'interactive',ms:Math.round(ms),renderW:lw,renderH:lh});window.__lpRender=lastRender;
  if(interactive){if(dragStats){dragStats.n++;dragStats.total+=ms;dragStats.max=Math.max(dragStats.max,ms)}}
- else finalRender(finalJob,{bw,bh,k,fw,fh,info})}
+ else finalRender(finalJob,{bw:g.bw,bh:g.bh,s:g.s,cx:g.cx,cy:g.cy,info})}
 function beginInteractive(){if(interactive)return;interactive=true;dragStats={n:0,total:0,max:0}}
 function endInteractive(){if(!interactive)return;interactive=false;if(DEBUG&&dragStats&&dragStats.n)console.log('[Lance Photo display] slider drag summary',{frames:dragStats.n,avgMs:Math.round(dragStats.total/dragStats.n),maxMs:Math.round(dragStats.max)});window.__lpDrag=dragStats;dragStats=null;scheduleDraw()}
 function updateHist(){let W=hist.clientWidth*devicePixelRatio,H=hist.clientHeight*devicePixelRatio;hist.width=W;hist.height=H;hctx.clearRect(0,0,W,H);if(!view.width)return;let t=document.createElement('canvas');t.width=220;t.height=Math.max(1,Math.round(220*view.height/view.width));let tc=t.getContext('2d');tc.drawImage(view,0,0,t.width,t.height);let d=tc.getImageData(0,0,t.width,t.height).data,bins=[Array(256).fill(0),Array(256).fill(0),Array(256).fill(0)];for(let i=0;i<d.length;i+=12){bins[0][d[i]]++;bins[1][d[i+1]]++;bins[2][d[i+2]]++}let m=Math.max(...bins.flat());['#ff6666','#62d980','#679cff'].forEach((col,j)=>{hctx.strokeStyle=col;hctx.globalAlpha=.7;hctx.beginPath();bins[j].forEach((n,x)=>{let px=x/255*W,py=H-n/m*H;x?hctx.lineTo(px,py):hctx.moveTo(px,py)});hctx.stroke()});hctx.globalAlpha=1}
 function drawCurve(){let W=curve.clientWidth*devicePixelRatio,H=curve.clientHeight*devicePixelRatio;curve.width=W;curve.height=H;cctx.clearRect(0,0,W,H);cctx.strokeStyle='#34383f';for(let i=1;i<4;i++){cctx.beginPath();cctx.moveTo(i*W/4,0);cctx.lineTo(i*W/4,H);cctx.stroke();cctx.beginPath();cctx.moveTo(0,i*H/4);cctx.lineTo(W,i*H/4);cctx.stroke()}cctx.strokeStyle='#fff';cctx.lineWidth=2;cctx.beginPath();for(let x=0;x<=W;x++){let y=curveFn(x/W);x?cctx.lineTo(x,H-y*H):cctx.moveTo(x,H-y*H)}cctx.stroke()}
-function showCrop(){let b=$('#cropBox');if(!img||!state.ratio){b.style.display='none';return}let r=view.getBoundingClientRect(),w=r.width,h=w/state.ratio;if(h>r.height){h=r.height;w=h*state.ratio}b.style.display='block';b.style.width=w+'px';b.style.height=h+'px';b.style.left=(r.width-w)/2+'px';b.style.top=(r.height-h)/2+'px'}
+function showCrop(){let b=$('#cropBox');if(!img||!state.ratio||!lastGeom){b.style.display='none';return}const g=lastGeom,iW=g.iw*g.z,iH=g.ih*g.z,iL=g.cssW/2-g.cx*g.z,iT=g.cssH/2-g.cy*g.z;let w=iW,h=w/state.ratio;if(h>iH){h=iH;w=h*state.ratio}b.style.display='block';b.style.width=w+'px';b.style.height=h+'px';b.style.left=(iL+(iW-w)/2)+'px';b.style.top=(iT+(iH-h)/2)+'px'}
 openBtn.onclick=()=>file.click();
-function setLoadedImage(source,name,work){lastLowKey=null;if(img&&img!==source)releaseSource(img);if(workImg&&workImg!==work&&workImg!==source)releaseSource(workImg);img=source;workImg=work||null;filename=name.replace(/\.[^.]+$/,'')+'-edited.jpg';empty.style.display='none';state=fresh();histStack=[];future=[];activeLook=null;bwOn=false;sync();setBaselines();setLookButtons();draw()}
+function setLoadedImage(source,name,work){lastLowKey=null;zoom=null;panX=panY=0.5;regionCache=null;if(img&&img!==source)releaseSource(img);if(workImg&&workImg!==work&&workImg!==source)releaseSource(workImg);img=source;workImg=work||null;filename=name.replace(/\.[^.]+$/,'')+'-edited.jpg';empty.style.display='none';state=fresh();histStack=[];future=[];activeLook=null;bwOn=false;sync();setBaselines();setLookButtons();draw()}
 async function loadStandard(f){rawLoadToken++;previewShowing=false;rawEdit=null;rawSource=null;rawMeta=null;let u=URL.createObjectURL(f);let im=new Image();await new Promise((ok,no)=>{im.onload=ok;im.onerror=no;im.src=u});setLoadedImage(im,f.name);URL.revokeObjectURL(u);showFileInfo(f,null,im.naturalWidth,im.naturalHeight)}
 function showFileInfo(f,meta,w,h){let el=document.querySelector('#fileInfo');if(!el)return;let bits=[f.name,(f.name.split('.').pop()||'').toUpperCase(),w&&h?`${w}×${h}`:'',`${(f.size/1048576).toFixed(1)} MB`];let cam=meta&&(meta.make||meta.Make||meta.camera_make||'')+' '+(meta&& (meta.model||meta.Model||meta.camera_model||'')||'');if(cam&&cam.trim())bits.push(cam.trim());el.textContent=bits.filter(Boolean).join(' • ')}
 // v0.6.2: one LibRaw decoder (one worker) is created once and reused for every RAW.
@@ -288,15 +312,42 @@ const RAW_BASE_LUT=(()=>{const enc=v=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.
 // knee, then rolls off smoothly toward white, so highlights are compressed instead of hard-clipped.
 let rawEdit=null;const rawLutCache=new Map();
 const RAW_ENC=v=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055,RAW_FILM=x=>(x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14);
-function rawExposureLut(E){E=Math.round(E*100)/100;if(rawLutCache.has(E))return rawLutCache.get(E);if(E===0)return RAW_BASE_LUT;
- const a=Math.pow(2,E),t=a>1?Math.max(0.5,1/a):1,k=1.2,lift=0.06,top=RAW_FILM(k),lut=new Uint8ClampedArray(65536);
- for(let i=0;i<65536;i++){let z=i/65535*a;if(z>t)z=t+(1-t)*(1-Math.exp(-(z-t)/(1-t)));let v=RAW_ENC(Math.min(1,RAW_FILM(Math.min(1,z)*k)/top));v=Math.min(1,v+lift*Math.pow(1-v,4));lut[i]=Math.round(v*255)}
- if(rawLutCache.size>40)rawLutCache.clear();rawLutCache.set(E,lut);return lut}
-function rawLinToCanvas(lin,E,cv){const L=rawExposureLut(E),w=lin.w,h=lin.h,d=lin.data;cv=cv||document.createElement('canvas');if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
- const x=cv.getContext('2d'),id=x.createImageData(w,h),p=id.data,n=w*h*3;for(let a=0,b=0;a<n;a+=3,b+=4){p[b]=L[d[a]];p[b+1]=L[d[a+1]];p[b+2]=L[d[a+2]];p[b+3]=255}x.putImageData(id,0,0);return cv}
-// Display source for RAW: work-size render at the current exposure (or exposure 0 for Before). Rebuilt only when exposure changes.
-function rawDisplaySource(){if(before){if(!rawEdit.base)rawEdit.base=rawLinToCanvas(rawEdit.workLin,0);return rawEdit.base}
- const E=Math.round(state.exposure*100)/100;if(rawEdit.curE!==E||!rawEdit.cur){rawEdit.cur=rawLinToCanvas(rawEdit.workLin,E,rawEdit.cur);rawEdit.curE=E}return rawEdit.cur}
+// v0.6.6 white balance: Temperature shifts the light source along the Planckian (black-body) locus in mireds,
+// Tint shifts along green/magenta. Both become per-channel multipliers in LINEAR light, normalised to keep luminance.
+function planckXY(K){K=Math.min(25000,Math.max(1667,K));const t=K,t2=t*t,t3=t2*t;const x=K<=4000?-0.2661239e9/t3-0.2343589e6/t2+0.8776956e3/t+0.179910:-3.0258469e9/t3+2.1070379e6/t2+0.2226347e3/t+0.240390;
+ const x2=x*x,x3=x2*x,y=K<=2222?-1.1063814*x3-1.34811020*x2+2.18555832*x-0.20219683:K<=4000?-0.9549476*x3-1.37418593*x2+2.09137015*x-0.16748867:3.0817580*x3-5.87338670*x2+3.75112997*x-0.37001483;return [x,y]}
+function xyToLinRGB([x,y]){const X=x/y,Z=(1-x-y)/y;return [3.2406*X-1.5372-0.4986*Z,-0.9689*X+1.8758+0.0415*Z,0.0557*X-0.2040+1.0570*Z]}
+function wbMultipliers(temp,tint){if(!temp&&!tint)return [1,1,1];const ref=xyToLinRGB(planckXY(6500)),K=1e6/(1e6/6500+temp*1.0),c=xyToLinRGB(planckXY(K));
+ const m=[c[0]/c[1]*ref[1]/ref[0],1,c[2]/c[1]*ref[1]/ref[2]];m[1]*=Math.pow(2,-tint/100*0.35);const lum=.2126*m[0]+.7152*m[1]+.0722*m[2];return m.map(v=>v/lum)}
+// RAW lookup tables: per-channel white balance x exposure in linear light, then the v0.6.4/v0.6.5 base tone curve.
+function rawLutKey(){return [Math.round(state.exposure*100)/100,Math.round(state.temperature),Math.round(state.tint)].join('|')}
+function rawChannelLut(gain){gain=Math.round(gain*10000)/10000;const ck='g'+gain;if(rawLutCache.has(ck))return rawLutCache.get(ck);if(gain===1){rawLutCache.set(ck,RAW_BASE_LUT);return RAW_BASE_LUT}
+ const t=gain>1?Math.max(0.5,1/gain):1,k=1.2,lift=0.06,top=RAW_FILM(k),lut=new Uint8ClampedArray(65536);
+ for(let i=0;i<65536;i++){let z=i/65535*gain;if(z>t)z=t+(1-t)*(1-Math.exp(-(z-t)/(1-t)));let v=RAW_ENC(Math.min(1,RAW_FILM(Math.min(1,z)*k)/top));v=Math.min(1,v+lift*Math.pow(1-v,4));lut[i]=Math.round(v*255)}
+ if(rawLutCache.size>60)rawLutCache.clear();rawLutCache.set(ck,lut);return lut}
+function rawLuts(E,temp,tint){const a=Math.pow(2,Math.round(E*100)/100),m=wbMultipliers(Math.round(temp),Math.round(tint));return m.map(v=>rawChannelLut(a*v))}
+function rawExposureLut(E){return rawChannelLut(Math.pow(2,Math.round(E*100)/100))}
+function rawLinRegion(lin,x0,y0,w,h,L,cv){cv=cv||document.createElement('canvas');if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}const x=cv.getContext('2d'),id=x.createImageData(w,h),p=id.data,d=lin.data,W=lin.w,[LR,LG,LB]=L;
+ for(let y=0;y<h;y++){let a=((y0+y)*W+x0)*3,b=y*w*4;for(let i=0;i<w;i++,a+=3,b+=4){p[b]=LR[d[a]];p[b+1]=LG[d[a+1]];p[b+2]=LB[d[a+2]];p[b+3]=255}}x.putImageData(id,0,0);return cv}
+function rawLinToCanvas(lin,L,cv){if(typeof L==='number')L=rawLuts(L,0,0);return rawLinRegion(lin,0,0,lin.w,lin.h,L,cv)}
+// Display source for RAW: work-size render at the current exposure/white balance (or neutral for Before). Rebuilt only when those change.
+function rawDisplaySource(){if(before){if(!rawEdit.base)rawEdit.base=rawLinToCanvas(rawEdit.workLin,rawLuts(0,0,0));return rawEdit.base}
+ const k=rawLutKey();if(rawEdit.curE!==k||!rawEdit.cur){rawEdit.cur=rawLinToCanvas(rawEdit.workLin,rawLuts(state.exposure,state.temperature,state.tint),rawEdit.cur);rawEdit.curE=k}return rawEdit.cur}
+// JPEG/WebP white balance: same multipliers, applied in linearised sRGB via lookup tables.
+let jpegWbCache=null;function jpegWbLuts(){const key=state.temperature+'|'+state.tint;if(jpegWbCache&&jpegWbCache.key===key)return jpegWbCache.l;const m=wbMultipliers(state.temperature,state.tint),dec=v=>v<=0.04045?v/12.92:Math.pow((v+0.055)/1.055,2.4);
+ const l=m.map(mm=>{const t=new Float32Array(4096);for(let i=0;i<4096;i++){const v=Math.min(1,dec(i/4095)*mm);t[i]=RAW_ENC(v)}return t});jpegWbCache={key,l};return l}
+// v0.6.6 detail: Clarity = mid-tone local contrast (large radius), Sharpness = edge-masked capture sharpening (small radius).
+// Radii are defined in IMAGE pixels and scaled by s (canvas pixels per image pixel), so preview, zoom and export match.
+// Both work on luminance only (no colour fringing), with soft limits against halos and a threshold so noise is not boosted.
+function detailPad(fw,fh){return state.clarity?0.008*Math.max(fw,fh)*3:3}
+function boxBlurH(src,dst,W,H,r){const n=2*r+1;for(let y=0;y<H;y++){const o=y*W;let acc=src[o]*(r+1);for(let i=1;i<=r;i++)acc+=src[o+Math.min(W-1,i)];for(let x=0;x<W;x++){dst[o+x]=acc/n;acc+=src[o+Math.min(W-1,x+r+1)]-src[o+Math.max(0,x-r)]}}}
+function boxBlurV(src,dst,W,H,r){const n=2*r+1;for(let x=0;x<W;x++){let acc=src[x]*(r+1);for(let i=1;i<=r;i++)acc+=src[Math.min(H-1,i)*W+x];for(let y=0;y<H;y++){dst[y*W+x]=acc/n;acc+=src[Math.min(H-1,y+r+1)*W+x]-src[Math.max(0,y-r)*W+x]}}}
+function gaussBlur(L,W,H,sigma){const out=new Float32Array(L.length),tmp=new Float32Array(L.length);let a=L;const r=Math.max(1,Math.round(Math.sqrt(4*sigma*sigma+1)/2-0.5));for(let p=0;p<3;p++){boxBlurH(a,tmp,W,H,r);boxBlurV(tmp,out,W,H,r);a=out}return out}
+function detailPass(data,W,H,s){const cl=state.clarity||0,sh=state.sharpness||0;if(!cl&&!sh)return;const fw=srcW(img),fh=srcH(img),n=W*H,L=new Float32Array(n);
+ for(let i=0,p=0;i<n;i++,p+=4)L[i]=(.2126*data[p]+.7152*data[p+1]+.0722*data[p+2])/255;const dL=new Float32Array(n);
+ if(cl){const sig=0.008*Math.max(fw,fh)*s;if(sig>=0.8){const B=gaussBlur(L,W,H,sig),A=cl/100*0.9;for(let i=0;i<n;i++){const d=L[i]-B[i],m=1-Math.pow(2*L[i]-1,2);dL[i]+=A*m*d/(1+Math.abs(d)/0.12)}}}
+ if(sh){const sig=0.7*s;if(sig>=0.3){const B=gaussBlur(L,W,H,Math.max(0.5,sig)),A=sh/100*1.8,th=0.012;for(let i=0;i<n;i++){let d=L[i]-B[i];d*=d*d/(d*d+th*th)*(1/(Math.abs(d)+1e-9))*Math.abs(d);dL[i]+=A*d/(1+Math.abs(A*d)/0.08)}}}
+ for(let i=0,p=0;i<n;i++,p+=4){const v=dL[i]*255;if(v){data[p]+=v;data[p+1]+=v;data[p+2]+=v}}}
 function linFromOut(out,meta){const d=out.data||out;let w=out.width||(meta&&(meta.width||meta.iwidth)),h=out.height||(meta&&(meta.height||meta.iheight));
  if(!(d instanceof Uint16Array)){const u=new Uint16Array(w*h*3);for(let i=0;i<u.length;i++)u[i]=d[i]*257;return {data:u,w,h}}return {data:d,w,h}}
 // 2x2 average in linear light (full-resolution AHD data down to the display grid).
@@ -309,7 +360,7 @@ async function rawToBitmap(out,meta){const d=out.data||out;let w=out.width||(met
  else{for(let a=0,b=0;a<n;a+=3,b+=4){rgba[b]=L[d[a]*257];rgba[b+1]=L[d[a+1]*257];rgba[b+2]=L[d[a+2]*257];rgba[b+3]=255}}
  return {bm:await createImageBitmap(new ImageData(rgba,w,h)),w,h}}
 // Replace the preview with the full-resolution RAW without resetting edits, undo history, looks, crop or rotation.
-function swapSource(full,work){const prev=img,prevWork=workImg;img=full;workImg=work||null;if(prev&&prev!==full)releaseSource(prev);if(prevWork&&prevWork!==workImg)releaseSource(prevWork);lastLowKey=null;draw()}
+function swapSource(full,work){const prev=img,prevWork=workImg;if(zoom!=null&&prev&&srcW(full))zoom*=srcW(prev)/srcW(full);regionCache=null;img=full;workImg=work||null;if(prev&&prev!==full)releaseSource(prev);if(prevWork&&prevWork!==workImg)releaseSource(prevWork);lastLowKey=null;draw()}
 async function makeWorkingPreview(full){
  const cap=Math.max(2560,Math.ceil(Math.max(screen.width||0,screen.height||0)*(window.devicePixelRatio||1)));
  const s=Math.min(1,cap/Math.max(full.width,full.height));if(s>=1)return null;
@@ -357,7 +408,7 @@ async function loadRaw(f){
 }
 file.onchange=async e=>{let f=e.target.files[0];if(!f)return;let ext=(f.name.split('.').pop()||'').toLowerCase();try{if(['arw','dng','nef','cr2','cr3','raf','rw2'].includes(ext))await loadRaw(f);else await loadStandard(f)}catch(err){console.error(err);alert('Could not open '+f.name+': '+(err&&err.message||err))}finally{file.value=''}}
 undoBtn.onclick=()=>{if(!histStack.length)return;future.push(clone(state));state=histStack.pop();sync();draw()};redoBtn.onclick=()=>{if(!future.length)return;histStack.push(clone(state));state=future.pop();sync();draw()};beforeBtn.onclick=()=>{before=!before;badge.style.display=before?'block':'none';draw()};resetBtn.onclick=()=>{checkpoint();state=fresh();sync();draw()};rotateBtn.onclick=()=>{checkpoint();state.rotation=(state.rotation+90)%360;draw()}
-function doExport(){if(!img)return alert('Open a photo first.');let rot=state.rotation%180!=0,w=rot?srcH(img):srcW(img),h=rot?srcW(img):srcH(img),o=document.createElement('canvas');o.width=w;o.height=h;let c=o.getContext('2d',{willReadFrequently:true});c.translate(w/2,h/2);c.rotate(state.rotation*Math.PI/180);c.drawImage(rawEdit&&rawEdit.fullLin?rawLinToCanvas(rawEdit.fullLin,state.exposure):img,-srcW(img)/2,-srcH(img)/2);c.setTransform(1,0,0,1,0,0);let id=c.getImageData(0,0,w,h);processData(id.data);c.putImageData(id,0,0);if(state.ratio){let cw=w,ch=cw/state.ratio;if(ch>h){ch=h;cw=ch*state.ratio}let x=(w-cw)/2,y=(h-ch)/2,t=document.createElement('canvas');t.width=Math.round(cw);t.height=Math.round(ch);t.getContext('2d').drawImage(o,x,y,cw,ch,0,0,cw,ch);o=t}o.toBlob(blob=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)},'image/jpeg',.95)}
+function doExport(){if(!img)return alert('Open a photo first.');let rot=state.rotation%180!=0,w=rot?srcH(img):srcW(img),h=rot?srcW(img):srcH(img),o=document.createElement('canvas');o.width=w;o.height=h;let c=o.getContext('2d',{willReadFrequently:true});c.translate(w/2,h/2);c.rotate(state.rotation*Math.PI/180);c.drawImage(rawEdit&&rawEdit.fullLin?rawLinToCanvas(rawEdit.fullLin,rawLuts(state.exposure,state.temperature,state.tint)):img,-srcW(img)/2,-srcH(img)/2);c.setTransform(1,0,0,1,0,0);let id=c.getImageData(0,0,w,h);detailPass(id.data,w,h,1);processData(id.data);c.putImageData(id,0,0);if(state.ratio){let cw=w,ch=cw/state.ratio;if(ch>h){ch=h;cw=ch*state.ratio}let x=(w-cw)/2,y=(h-ch)/2,t=document.createElement('canvas');t.width=Math.round(cw);t.height=Math.round(ch);t.getContext('2d').drawImage(o,x,y,cw,ch,0,0,cw,ch);o=t}o.toBlob(blob=>{let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)},'image/jpeg',.95)}
 exportBtn.onclick=async()=>{if(rawPending){busy.style.display='block';busy.textContent='Finishing full-resolution RAW…';await rawPending;busy.style.display='none'}if(previewShowing)return alert('Export is blocked: the full-resolution RAW is not available.');doExport()};
 let resizeTimer=null;function onViewportChange(){beginInteractive();scheduleDraw();drawCurve();clearTimeout(resizeTimer);resizeTimer=setTimeout(endInteractive,200)}
 window.addEventListener('resize',onViewportChange);
@@ -387,11 +438,25 @@ const stage051=document.querySelector('#stage'), view051=document.querySelector(
 document.querySelector('#filmBtn')?.addEventListener('click',()=>{stage051.classList.toggle('noFilm');draw()});
 document.querySelector('#fitBtn')?.addEventListener('click',()=>{
   view051.style.maxWidth='100%'; view051.style.maxHeight=stage051.classList.contains('noFilm')?'calc(100dvh - 82px)':'calc(100dvh - 164px)';
-  draw();
+  zoom=null;panX=panY=0.5;draw();
 });
 document.querySelector('#zoom100Btn')?.addEventListener('click',()=>{
-  view051.style.maxWidth='none'; view051.style.maxHeight='none'; draw();
+  if(!img)return;view051.style.maxWidth='100%';zoom=1;draw();
 });
+
+// v0.6.6 zoom: wheel zooms toward the cursor (Fit to 400%), mouse drag pans, double-click toggles Fit / 100%.
+// Touch input is left alone (no pinch handling), so mobile scrolling and panels behave as before.
+let zoomSettle=null;
+function zoomAt(clientX,clientY,newZ){if(!img||!lastGeom)return;const g=lastGeom,r=view.getBoundingClientRect(),mx=clientX-(r.left+r.width/2),my=clientY-(r.top+r.height/2);
+ const ix=g.cx+mx/g.z,iy=g.cy+my/g.z,z1=Math.max(g.zFit,Math.min(ZOOM_MAX,newZ));
+ if(z1<=g.zFit*1.001){zoom=null;panX=panY=0.5}else{zoom=z1;panX=(ix-mx/z1)/g.iw;panY=(iy-my/z1)/g.ih}
+ beginInteractive();scheduleDraw();clearTimeout(zoomSettle);zoomSettle=setTimeout(endInteractive,180)}
+stage051.addEventListener('wheel',e=>{if(!img||!lastGeom)return;e.preventDefault();const unit=e.deltaMode===1?0.05:e.deltaMode===2?1:0.0015;zoomAt(e.clientX,e.clientY,lastGeom.z*Math.exp(-e.deltaY*unit))},{passive:false});
+view051.addEventListener('dblclick',e=>{if(!img||!lastGeom)return;e.preventDefault();if(lastGeom.fit)zoomAt(e.clientX,e.clientY,1);else{zoom=null;panX=panY=0.5;draw()}});
+view051.addEventListener('pointerdown',e=>{if(!img||!lastGeom||lastGeom.fit||e.pointerType!=='mouse'||e.button!==0)return;e.preventDefault();panning={x:e.clientX,y:e.clientY,cx:lastGeom.cx,cy:lastGeom.cy};try{view051.setPointerCapture(e.pointerId)}catch(_){}beginInteractive();view051.style.cursor='grabbing'});
+view051.addEventListener('pointermove',e=>{if(!panning||!lastGeom)return;const g=lastGeom;panX=(panning.cx-(e.clientX-panning.x)/g.z)/g.iw;panY=(panning.cy-(e.clientY-panning.y)/g.z)/g.ih;scheduleDraw()});
+function endPan(){if(!panning)return;panning=null;endInteractive();if(lastGeom)updateZoomLabel(lastGeom)}
+view051.addEventListener('pointerup',endPan);view051.addEventListener('pointercancel',endPan);view051.addEventListener('lostpointercapture',endPan);
 
 // In-memory Chat capture. No download is intentionally created.
 document.querySelector('#chatShotBtn')?.addEventListener('click',async()=>{
