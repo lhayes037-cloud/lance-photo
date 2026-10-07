@@ -1,14 +1,22 @@
-LANCE PHOTO v0.4.1 — ANDROID INSTALL FIX
+LANCE PHOTO v0.5 — PRO UI REDESIGN
 
-Upload ALL files in this folder to the existing GitHub repository, replacing files with the same names.
+A + B design direction:
+- Professional Studio layout on unfolded/large screens
+- Luxury Minimal layout on narrow/closed screens
+- New premium dark + champagne-gold Lance Photo branding
+- New app icon in 192px, 512px, and SVG formats
+- Existing 0.4.1 editing engine preserved
+- Responsive mobile bottom navigation
+- Filmstrip-style workspace on large screens
+- Updated service-worker cache for automatic refresh
 
-Changes:
-- Permanent Install App button in Lance Photo.
-- Native install prompt is used whenever the browser exposes it.
-- Helpful Samsung Internet install instructions if the browser does not expose the prompt.
-- Proper 192x192 and 512x512 PNG PWA icons.
-- Improved manifest with app id, standalone display and maskable icon.
-- Service-worker cache bumped to v0.4.1 so existing cached files are replaced.
-- All Lance Photo 0.3 editing features remain.
+UPLOAD ALL 7 FILES TO THE ROOT OF YOUR EXISTING GitHub repository:
+index.html
+manifest.webmanifest
+sw.js
+icon.svg
+icon-192.png
+icon-512.png
+README.txt
 
-Do not create a new repository. Keep using the existing lance-photo GitHub Pages site.
+Then commit the changes. Your existing GitHub Pages URL stays the same.
